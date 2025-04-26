@@ -45,7 +45,29 @@
     "defaultBranch": "main",
     "testing": {
       "coverageThresholdPercent": 90,
-      "runAffectedTestsOnly": true
+      "runAffectedTestsOnly": true,
+      "testPatterns": {
+        "js": {
+          "components": "src/{component}/**/*.js",
+          "tests": "test/{component}/**/*.test.js"
+        },
+        "python": {
+          "components": ["src/{component}/**/*.py", "{component}/**/*.py"],
+          "tests": ["tests/{component}/**/*.py", "tests/test_{component}.py"]
+        },
+        "go": {
+          "components": "{component}/**/*.go",
+          "tests": "{component}/**/*_test.go"
+        },
+        "rust": {
+          "components": "src/{component}/**/*.rs",
+          "tests": "tests/{component}/**/*.rs"
+        },
+        "java": {
+          "components": "src/main/java/{component}/**/*.java",
+          "tests": "src/test/java/{component}/**/*.java"
+        }
+      }
     },
     "scripts": {
       "requiredDependencies": {
@@ -63,6 +85,7 @@
   },
   "ci": {
     "metaWorkflow": ".github/workflows/meta-ci.yml",
-    "implementationWorkflowDir": "generated_implementation/.github/workflows"
+    "implementationWorkflowDir": "generated_implementation/.github/workflows",
+    "scheduledCleanup": true
   }
 }

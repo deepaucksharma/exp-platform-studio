@@ -190,41 +190,118 @@ if [ "$CNT" -gt "$MAX" ]; then
   echo "" > "../$OUT"
   ALL=true
 else
+  # Load test patterns from config if available
+  function get_test_pattern() {
+    local lang=$1
+    local type=$2  # 'components' or 'tests'
+    
+    # Try to use Node.js and config utils to get the patterns
+    if [ -f "../scripts/config-utils.js" ]; then
+      local node_cmd="
+        try {
+          const utils = require('../scripts/config-utils');
+          const patterns = utils.config.development?.testing?.testPatterns;
+          if (patterns && patterns['$lang'] && patterns['$lang']['$type']) {
+            const pattern = patterns['$lang']['$type'];
+            if (Array.isArray(pattern)) {
+              console.log(pattern.join('|'));
+            } else {
+              console.log(pattern);
+            }
+          } else {
+            console.log('');
+          }
+        } catch (e) {
+          console.log('');
+        }
+      "
+      
+      local pattern=$(node -e "$node_cmd" 2>/dev/null)
+      if [ -n "$pattern" ] && [ "$pattern" != "undefined" ]; then
+        echo "$pattern"
+        return 0
+      fi
+    fi
+    
+    # Fallback to default patterns if config not found
+    case $lang in
+      js)
+        if [ "$type" = "components" ]; then
+          echo "src/([^/]+)"
+        else
+          echo "test/([^/]+)"
+        fi
+        ;;
+      go)
+        echo "([^/]+)"
+        ;;
+      python)
+        if [ "$type" = "components" ]; then
+          echo "src/([^/]+)|([^/]+)"
+        else
+          echo "tests/([^/]+)|tests/test_([^/]+)"
+        fi
+        ;;
+      rust)
+        if [ "$type" = "components" ]; then
+          echo "src/([^/]+)"
+        else
+          echo "tests/([^/]+)"
+        fi
+        ;;
+      java-maven|java-gradle)
+        if [ "$type" = "components" ]; then
+          echo "src/main/java/([^/]+)"
+        else
+          echo "src/test/java/([^/]+)"
+        fi
+        ;;
+      *)
+        echo "([^/]+)"
+        ;;
+    esac
+  }
+
   # Identify affected components based on language
   CMP=()
   while read -r f; do
     [ -z "$f" ] && continue
     
+    # Get the appropriate pattern for this language
+    comp_pattern=$(get_test_pattern $LANG "components")
+    test_pattern=$(get_test_pattern $LANG "tests")
+    
     comp=""
-    case $LANG in
-      js)
-        if [[ "$f" =~ ^src/([^/]+) ]]; then 
-          comp="${BASH_REMATCH[1]}"
-        elif [[ "$f" =~ ^test/([^/]+) ]]; then
-          comp="${BASH_REMATCH[1]}"
-        fi
-        ;;
-      go) 
-        comp=$(dirname "$f")
-        ;;
-      python)
-        if [[ "$f" =~ ^tests/ ]]; then 
-          comp="$f"
-        else 
-          comp=$(dirname "$f")
-        fi
-        ;;
-      rust) 
-        comp=$(echo "$f" | cut -d'/' -f1)
-        ;;
-      java-maven|java-gradle)
-        if [[ "$f" =~ ^src/main/java/([^/]+) ]]; then
-          comp="${BASH_REMATCH[1]}"
-        elif [[ "$f" =~ ^src/test/java/([^/]+) ]]; then
-          comp="${BASH_REMATCH[1]}"
-        fi
-        ;;
-    esac
+    # Try component pattern first
+    if [[ -n "$comp_pattern" ]]; then
+      if [[ "$f" =~ $comp_pattern ]]; then
+        for i in "${!BASH_REMATCH[@]}"; do
+          if [ $i -gt 0 ] && [ -n "${BASH_REMATCH[$i]}" ]; then
+            comp="${BASH_REMATCH[$i]}"
+            break
+          fi
+        done
+      fi
+    fi
+    
+    # If no match found and we have a test pattern, try that
+    if [[ -z "$comp" && -n "$test_pattern" ]]; then
+      if [[ "$f" =~ $test_pattern ]]; then
+        for i in "${!BASH_REMATCH[@]}"; do
+          if [ $i -gt 0 ] && [ -n "${BASH_REMATCH[$i]}" ]; then
+            comp="${BASH_REMATCH[$i]}"
+            break
+          fi
+        done
+      fi
+    fi
+    
+    # Fallback to directory name if no match found
+    if [[ -z "$comp" ]]; then
+      comp=$(dirname "$f")
+      # Remove any leading "./" from the dirname
+      comp=${comp#./}
+    fi
     
     if [ -n "$comp" ]; then
       # Check if component is already in array

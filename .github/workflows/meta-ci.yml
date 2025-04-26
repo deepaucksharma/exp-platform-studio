@@ -5,6 +5,8 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+  schedule:
+    - cron: '0 0 * * 0'  # Run weekly on Sunday at midnight
 
 jobs:
   validate-structure:
@@ -25,6 +27,21 @@ jobs:
             cat health-check-report.md
             exit 1
           fi
+          
+  clean-cache:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      - name: Install dependencies
+        run: npm ci
+      - name: Run cache cleanup
+        run: |
+          node scripts/cache-cleanup.js
+          echo "Cache cleanup completed"
           
   detect-language:
     runs-on: ubuntu-latest
@@ -129,3 +146,27 @@ jobs:
               fi
               ;;
           esac
+
+  # Weekly maintenance tasks
+  maintenance:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      - name: Install dependencies
+        run: npm ci
+      - name: Run comprehensive cache cleanup
+        run: |
+          node scripts/cache-cleanup.js --force --all
+          echo "Comprehensive cache cleanup completed"
+      - name: Update project status
+        run: |
+          npm run generate:status
+          echo "Project status updated"
+      - name: Verify documentation links
+        run: |
+          npm run docs:verify || echo "Documentation verification completed with warnings"
