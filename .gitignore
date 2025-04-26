@@ -1,42 +1,82 @@
-# ---- Universal ----
+# General, OS, IDEs (Keep existing good ones)
 .DS_Store
-*.log
+*.swp
+*.swo
 *.tmp
 *.temp
-*.swp
+*~
+*.bak
+ehthumbs.db
+Thumbs.db
 .idea/
 .vscode/
+*.sublime-project
+*.sublime-workspace
 
-# ---- Node/TypeScript ----
-node_modules/
-npm-debug.log*
+# Logs
+*.log
+/issues.log # Specific log if not covered by *.log
 
-# ---- Python ----
-__pycache__/
-*.py[cod]
-.venv/
-
-# ---- Go ----
-bin/
-pkg/
-
-# ---- Java ----
-target/
-*.class
-
-# ---- Rust ----
-target/
-
-# ---- Generic build/artifacts ----
+# Build outputs (Keep existing good ones)
 dist/
 build/
+out/
+bin/
+obj/
+target/
 coverage/
-.cache/
+*.o
+*.a
+*.so
+*.dll
+*.exe
 
-# Allow sub-folders inside generated_implementation/ to have their own package management
-# But ignore their build artifacts and dependencies
-generated_implementation/**/node_modules/
-generated_implementation/**/venv/
-generated_implementation/**/target/
-generated_implementation/**/bin/
-generated_implementation/**/pkg/
+# Dependency directories (Keep existing)
+node_modules/
+vendor/
+jspm_packages/
+bower_components/
+.venv/
+venv/
+__pycache__/
+
+# DStudio Generated Files (Meta Layer - DO NOT COMMIT)
+/.cache/
+/project-layout.json
+/spec.index.json
+/status.quick.json
+/.agent-lock*
+/health-check-report.md
+/claude/views/
+/claude/code-maps/
+/claude/protocol-refs.*
+# /status/ # Optional: Ignore entire dir if individual agent files are ephemeral
+# /status/status-*.md # Optional: Ignore only agent files if dir might contain other things
+
+# Language Specific (Keep existing)
+# Python
+*.pyc
+*.pyo
+*.egg-info/
+pip-wheel-metadata/
+# Go
+*.exe~
+# Java
+*.class
+*.jar
+*.war
+*.ear
+hs_err_pid*
+# Dotnet
+*[Bb]in/
+*[Oo]bj/
+
+# Environment variables (Keep existing)
+.env
+.env.*
+!.env.example
+
+# Optional Secrets (Keep existing)
+secrets/
+*.key
+*.pem
