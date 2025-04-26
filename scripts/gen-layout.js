@@ -9,14 +9,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { execSync } = require('child_process');
-
-// Configuration
-const IGNORE_PATTERNS = [
-  'node_modules', '.git', 'dist', 'build', '.cache',
-  '*.log', '*.lock', '*.tmp', '*.temp'
-];
-const IMPLEMENTATION_DIR = 'generated_implementation';
+const utils = require('./config-utils');
 
 // Helper to calculate SHA-256 of a file
 function getFileHash(filePath) {
@@ -56,7 +49,8 @@ async function scanDirectory(dirPath, baseDir = '') {
       const itemPath = path.join(dirPath, item);
       const relativePath = path.join(baseDir, item);
 
-      if (IGNORE_PATTERNS.some(pattern => matchesPattern(item, pattern))) {
+      // Skip excluded directories
+      if (utils.isExcludedDir(item)) {
         continue;
       }
 
@@ -65,17 +59,29 @@ async function scanDirectory(dirPath, baseDir = '') {
 
         if (stats.isDirectory()) {
           result.directories[item] = await scanDirectory(itemPath, relativePath);
-        } else {
+        } else if (stats.size <= 50 * 1024 * 1024) { // Limit to 50MB files
           result.files[item] = {
             size: stats.size,
             modified: stats.mtime.toISOString(),
             hash: await getFileHash(itemPath)
           };
+        } else {
+          result.files[item] = {
+            size: stats.size,
+            modified: stats.mtime.toISOString(),
+            hash: 'skipped-large-file',
+            note: 'File exceeds 50MB size limit for hashing'
+          };
         }
       } catch (statErr) {
         console.error(`Error stating path ${itemPath}:`, statErr.message);
         if (statErr.code === 'ENOENT') continue;
-        result.files[item] = { size: 0, modified: new Date(0).toISOString(), hash: 'error-stating-file' };
+        result.files[item] = { 
+          size: 0, 
+          modified: new Date(0).toISOString(), 
+          hash: 'error-stating-file',
+          error: statErr.message
+        };
       }
     }
   } catch (err) {
@@ -87,23 +93,32 @@ async function scanDirectory(dirPath, baseDir = '') {
 
 // Main function
 async function generateProjectLayout() {
-  const rootDir = process.cwd();
+  // Check dependencies
+  const depCheck = utils.checkDependencies();
+  if (!depCheck.success) {
+    console.warn(`Warning: Missing dependencies: ${depCheck.missing.join(', ')}`);
+  }
+  
+  // Use the implementation directory from config
+  const implDir = utils.getImplementationDir();
+  const implDirRelative = utils.config.workspace.implementationDir || './generated_implementation';
   
   // Ensure implementation directory exists
-  const implDir = path.join(rootDir, IMPLEMENTATION_DIR);
   if (!fs.existsSync(implDir)) {
     try {
       await fs.promises.mkdir(implDir, { recursive: true });
-      console.log(`Created implementation directory: ${IMPLEMENTATION_DIR}`);
+      console.log(`Created implementation directory: ${implDirRelative}`);
     } catch (err) {
       console.error(`Error creating implementation directory: ${err.message}`);
     }
   }
 
+  console.log(`Scanning implementation directory: ${implDirRelative}`);
+  
   const layout = {
-    version: '1.1',
+    version: '1.2',
     generated: new Date().toISOString(),
-    rootDirectory: IMPLEMENTATION_DIR,
+    rootDirectory: implDirRelative,
     structure: await scanDirectory(implDir),
     stats: {
       totalDirectories: 0,
@@ -131,8 +146,9 @@ async function generateProjectLayout() {
   layout.stats.totalFiles = stats.files;
   layout.stats.totalSize = stats.size;
 
-  await fs.promises.writeFile('project-layout.json', JSON.stringify(layout, null, 2));
-  console.log(`Project layout generated: ${layout.stats.totalFiles} files in ${layout.stats.totalDirectories} directories in ${IMPLEMENTATION_DIR}.`);
+  const outputPath = utils.getAbsolutePath('project-layout.json');
+  await fs.promises.writeFile(outputPath, JSON.stringify(layout, null, 2));
+  console.log(`Project layout generated: ${layout.stats.totalFiles} files in ${layout.stats.totalDirectories} directories (${Math.round(layout.stats.totalSize / 1024)} KB).`);
 }
 
 (async () => {

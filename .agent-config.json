@@ -1,9 +1,10 @@
 {
-  "version": "1.1",
+  "version": "1.2",
   "projectName": "DStudio",
   "workspace": {
     "rootDir": "./",
     "implementationDir": "./generated_implementation",
+    "metaDir": "./",
     "projectTypePatterns": {
       "js": ["generated_implementation/package.json"],
       "go": ["generated_implementation/go.mod"],
@@ -11,7 +12,33 @@
       "rust": ["generated_implementation/Cargo.toml"],
       "java": ["generated_implementation/pom.xml", "generated_implementation/build.gradle"]
     },
-    "excludeDirs": [".git", "node_modules", ".cache", "dist", "build"]
+    "excludeDirs": [
+      ".git", 
+      "node_modules", 
+      ".cache", 
+      "dist", 
+      "build",
+      "venv",
+      ".venv",
+      "__pycache__",
+      "vendor",
+      "target",
+      ".gradle",
+      "gradle",
+      "bin",
+      "obj",
+      "out"
+    ],
+    "metaFiles": [
+      ".agent-config.json",
+      "project-layout.json",
+      "project-status.md",
+      "spec.index.json",
+      "status.quick.json",
+      "CHANGES-SUMMARY.md",
+      "README.md",
+      "retrospective.md"
+    ]
   },
   "development": {
     "codingStandardsProtocol": "docs/protocol/claude-protocol.md",
@@ -19,11 +46,23 @@
     "testing": {
       "coverageThresholdPercent": 90,
       "runAffectedTestsOnly": true
+    },
+    "scripts": {
+      "requiredDependencies": {
+        "node": ">=16.0.0",
+        "npm": ">=8.0.0"
+      }
     }
   },
   "recovery": {
     "heartbeatFile": ".agent-lock",
     "heartbeatIntervalSeconds": 30,
-    "heartbeatStaleSeconds": 300
+    "heartbeatStaleSeconds": 300,
+    "staleLocksDir": ".cache/stale-locks",
+    "maxCacheAge": 604800
+  },
+  "ci": {
+    "metaWorkflow": ".github/workflows/meta-ci.yml",
+    "implementationWorkflowDir": "generated_implementation/.github/workflows"
   }
 }

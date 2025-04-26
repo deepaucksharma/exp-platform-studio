@@ -1,0 +1,32 @@
+{
+  "name": "dstudio-meta",
+  "version": "1.0.0",
+  "description": "DStudio project infrastructure (meta layer)",
+  "private": true,
+  "scripts": {
+    "generate:layout": "node scripts/gen-layout.js",
+    "generate:filemap": "node scripts/gen-file-map.js",
+    "generate:spec-index": "node scripts/gen-spec-index.js",
+    "generate:status": "node scripts/gen-status-quick.js",
+    "generate:all": "npm run generate:layout && npm run generate:filemap && npm run generate:spec-index && npm run generate:status",
+    "health-check": "node scripts/health-check.js",
+    "clean": "bash scripts/clean-tmp.sh",
+    "watchdog": "bash scripts/watchdog.sh",
+    "rollback": "bash scripts/rollback.sh",
+    "test:affected": "bash scripts/test-affected.sh",
+    "setup": "node scripts/setup.js",
+    "cache:clean": "node scripts/cache-cleanup.js",
+    "docs:verify": "node scripts/verify-docs.js"
+  },
+  "dependencies": {
+    "minimatch": "^7.4.6",
+    "fs-extra": "^11.2.0",
+    "chalk": "^4.1.2",
+    "commander": "^11.1.0",
+    "glob": "^10.3.10"
+  },
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  }
+}

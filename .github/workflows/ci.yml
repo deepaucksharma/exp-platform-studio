@@ -1,13 +1,20 @@
-name: CI
-on: [push]
+name: CI Legacy (See meta-ci.yml)
+
+# This file is kept for backward compatibility but should be replaced by meta-ci.yml
+# and implementation CI in the generated_implementation/.github/workflows directory.
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+    
 jobs:
-  build:
+  redirect:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - name: Setup Node
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-      - run: npm ci || true
-      - run: echo "no tests yet"
+      - name: Redirect Notice
+        run: |
+          echo "This workflow is deprecated in favor of the new meta/implementation separation."
+          echo "Please use meta-ci.yml and implementation-ci.yml instead."
+          exit 0

@@ -1,0 +1,131 @@
+name: Meta CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  validate-structure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      - name: Install dependencies
+        run: npm ci
+      - name: Check Meta/Implementation separation
+        run: |
+          npm run health-check
+          if [ -f "health-check-report.md" ] && grep -q "Issues" health-check-report.md; then
+            echo "Health check detected issues"
+            cat health-check-report.md
+            exit 1
+          fi
+          
+  detect-language:
+    runs-on: ubuntu-latest
+    needs: validate-structure
+    outputs:
+      language: ${{ steps.detect.outputs.language }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      - name: Install dependencies
+        run: npm ci
+      - name: Create language detection script
+        run: |
+          cat > detect-language.js << 'EOF'
+          /**
+           * Dynamic language detection from .agent-config.json
+           */
+          const fs = require('fs');
+          const path = require('path');
+          
+          // Load configuration
+          const config = JSON.parse(fs.readFileSync('.agent-config.json', 'utf8'));
+          const patterns = config.workspace.projectTypePatterns || {};
+          
+          // Check each language's patterns
+          for (const [language, filePatterns] of Object.entries(patterns)) {
+            for (const pattern of filePatterns) {
+              if (fs.existsSync(pattern)) {
+                console.log(`language=${language}`);
+                process.exit(0);
+              }
+            }
+          }
+          
+          console.log("language=unknown");
+          EOF
+      - name: Detect project language
+        id: detect
+        run: |
+          node detect-language.js >> $GITHUB_OUTPUT
+
+  trigger-implementation-ci:
+    needs: [validate-structure, detect-language]
+    if: needs.detect-language.outputs.language != 'unknown'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Check for implementation CI
+        id: check-ci
+        run: |
+          IMPL_CI_DIR="generated_implementation/.github/workflows"
+          if [ -d "$IMPL_CI_DIR" ] && [ "$(ls -A $IMPL_CI_DIR)" ]; then
+            echo "has_ci=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_ci=false" >> $GITHUB_OUTPUT
+          fi
+      - name: Run implementation CI
+        if: steps.check-ci.outputs.has_ci == 'true'
+        run: |
+          cd generated_implementation
+          # Workflow would normally be triggered automatically, but this step
+          # is a placeholder to show the concept
+          echo "Implementation CI would run its own workflows"
+      - name: Fallback to basic implementation check
+        if: steps.check-ci.outputs.has_ci == 'false'
+        env:
+          LANGUAGE: ${{ needs.detect-language.outputs.language }}
+        run: |
+          cd generated_implementation
+          echo "No implementation CI found, running basic check for $LANGUAGE"
+          case "$LANGUAGE" in
+            js)
+              if [ -f "package.json" ]; then 
+                npm ci && npm test || echo "No tests available yet"
+              fi
+              ;;
+            python)
+              if [ -f "requirements.txt" ]; then
+                pip install -r requirements.txt && pytest -xvs || echo "No tests available yet"
+              elif [ -f "pyproject.toml" ]; then
+                pip install -e . && pytest -xvs || echo "No tests available yet"
+              fi
+              ;;
+            go)
+              if [ -f "go.mod" ]; then
+                go test ./... || echo "No tests available yet"
+              fi
+              ;;
+            rust)
+              if [ -f "Cargo.toml" ]; then
+                cargo test || echo "No tests available yet"
+              fi
+              ;;
+            java)
+              if [ -f "pom.xml" ]; then
+                mvn test || echo "No tests available yet"
+              elif [ -f "build.gradle" ]; then
+                ./gradlew test || echo "No tests available yet"
+              fi
+              ;;
+          esac

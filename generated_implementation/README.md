@@ -1,46 +1,35 @@
 # DStudio Implementation
 
-This directory contains the actual implementation code generated and managed by the AI agent. All code, configuration files, and assets related to the implementation should be placed in this directory.
+This directory contains the actual implementation of the DStudio project. All application code, tests, and implementation-specific configurations should be placed here.
 
 ## Structure
 
-The implementation will be organized based on the selected language/stack. Common patterns include:
+The implementation directory is designed to be self-contained. It should include:
 
-```
-generated_implementation/
-├── src/               # Source code
-├── tests/             # Test files
-├── config/            # Configuration files
-├── docs/              # Implementation-specific documentation
-└── [language-specific folders]
-```
+- Application source code
+- Tests
+- Implementation-specific documentation
+- Implementation-specific CI/CD configuration
+- Build artifacts (these will be automatically ignored by the meta scripts)
 
-## Working with this Directory
+## CI/CD
 
-- All build commands should be run from this directory
-- Tests are executed against code in this directory
-- Dependencies are managed within this directory
-- Version control tracks changes to files in this directory
+The implementation has its own CI/CD pipeline in the `.github/workflows` directory. This allows the implementation to have technology-specific CI/CD processes while the meta layer focuses on project structure validation.
 
-## Language Support
+## Getting Started
 
-The implementation supports various languages:
+To start implementing your project:
 
-- JavaScript/Node.js
-- Python
-- Go
-- Rust
-- Java
+1. Add your technology-specific files to this directory
+2. Update the implementation-specific CI/CD workflow as needed
+3. Make sure your main file matches one of the patterns in the `.agent-config.json` for proper language detection
 
-The actual language used will be determined based on project requirements.
+## Testing
 
-## Development Guidelines
+Tests should be placed within this directory structure and follow the conventions of your chosen technology stack.
 
-- Follow test-driven development principles
-- Document all public APIs
-- Keep code modular and maintainable
-- Adhere to language-specific best practices
+## Notes
 
----
-
-**Note**: This directory is managed by the AI agent as part of the DStudio project. Manual changes should be coordinated with the AI to ensure consistency.
+- The meta layer scripts will scan this directory for generating project layouts and file maps
+- Changing the implementation should not require modifying the meta layer
+- Implementation-specific dependencies should be declared in implementation-specific files (e.g., package.json, requirements.txt, etc.)
