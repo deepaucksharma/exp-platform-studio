@@ -9,6 +9,7 @@
     "generate:spec-index": "node scripts/gen-spec-index.js",
     "generate:status": "node scripts/gen-status-quick.js",
     "generate:all": "npm run generate:layout && npm run generate:filemap && npm run generate:spec-index && npm run generate:status",
+    "merge:status": "node scripts/merge-agent-status.js",
     "health-check": "node scripts/health-check.js",
     "clean": "bash scripts/clean-tmp.sh",
     "watchdog": "bash scripts/watchdog.sh",
@@ -16,7 +17,8 @@
     "test:affected": "bash scripts/test-affected.sh",
     "setup": "node scripts/setup.js",
     "cache:clean": "node scripts/cache-cleanup.js",
-    "docs:verify": "node scripts/verify-docs.js"
+    "docs:verify": "node scripts/verify-docs.js",
+    "utils:demo": "node scripts/example-utils-demo.js"
   },
   "dependencies": {
     "minimatch": "^7.4.6",

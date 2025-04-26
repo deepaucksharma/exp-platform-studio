@@ -2,6 +2,7 @@
 
 # Enhanced watchdog script with better error handling, configuration reading,
 # and cross-platform support that is aware of meta/implementation separation
+# UPDATED: Now supports multiple agent locks using .agent-lock-* pattern
 
 # Function to print colored output
 print_status() {
@@ -144,6 +145,80 @@ STALE=$(read_config_node "recovery.heartbeatStaleSeconds" "300")
 INT=$(read_config_node "recovery.heartbeatIntervalSeconds" "30")
 DIR=$(read_config_node "recovery.staleLocksDir" ".cache/stale-locks")
 
+# Function to check if a file appears to be an agent lock file
+is_agent_lock_file() {
+  local file=$1
+  # Match either exact file name or files with pattern .agent-lock-*
+  if [[ "$file" == ".agent-lock" ]] || [[ "$file" =~ \.agent-lock-.* ]]; then
+    return 0  # true
+  else
+    return 1  # false
+  fi
+}
+
+# Function to check a single lock file
+check_lock_file() {
+  local lock_file=$1
+  
+  # Check if file exists but can't be read (permission issue)
+  if [ ! -r "$lock_file" ]; then
+    log_message "ERROR" "Cannot read $lock_file - permission denied" "$LOG"
+    return
+  fi
+  
+  # Get modification time
+  LM=$(get_file_mtime "$lock_file")
+  
+  # If we couldn't get the modification time, log and continue
+  if [ -z "$LM" ]; then
+    log_message "ERROR" "Could not determine last modification time of $lock_file" "$LOG"
+    return
+  fi
+  
+  now=$(date +%s)
+  age=$((now-LM))
+  
+  # If the lock file is getting old but not yet stale, log a warning
+  if [ "$age" -gt "$((STALE / 2))" ] && [ "$age" -lt "$STALE" ]; then
+    log_message "WARN" "Lock file $lock_file is getting old (${age}s)" "$LOG"
+  fi
+  
+  # If the lock file is stale, back it up and remove it
+  if [ "$age" -gt "$STALE" ]; then
+    ts=$(date -u +%Y%m%d%H%M%S)
+    
+    # Try to parse the lock file to get agent info
+    if [ -r "$lock_file" ]; then
+      AGENT_INFO=$(grep -o '"agent": *"[^"]*"' "$lock_file" 2>/dev/null | cut -d'"' -f4)
+      if [ -n "$AGENT_INFO" ]; then
+        BACKUP_SUFFIX="${ts}.${AGENT_INFO}.stale"
+      else
+        BACKUP_SUFFIX="${ts}.stale"
+      fi
+    else
+      BACKUP_SUFFIX="${ts}.stale"
+    fi
+    
+    # Create the backup file name
+    local lock_filename=$(basename "$lock_file")
+    BACKUP_FILE="$DIR/${lock_filename}.${BACKUP_SUFFIX}"
+    
+    # Backup the stale lock
+    if cp "$lock_file" "$BACKUP_FILE" 2>/dev/null; then
+      log_message "ALERT" "Stale heartbeat detected (${age}s > ${STALE}s) for $lock_file, backed up to $BACKUP_FILE" "$LOG"
+      
+      # Try to remove the lock file, but don't fail if we can't
+      if rm "$lock_file" 2>/dev/null; then
+        log_message "INFO" "Removed stale lock file $lock_file" "$LOG"
+      else
+        log_message "ERROR" "Failed to remove stale lock file $lock_file" "$LOG"
+      fi
+    else
+      log_message "ERROR" "Failed to backup stale lock file to $BACKUP_FILE" "$LOG"
+    fi
+  fi
+}
+
 # Ensure cache directory exists
 mkdir -p "$DIR"
 
@@ -151,7 +226,7 @@ mkdir -p "$DIR"
 IMPL_DIR=$(read_config_node "workspace.implementationDir" "generated_implementation")
 IMPL_DIR=${IMPL_DIR#./}  # Remove leading ./
 
-log_message "INFO" "Watchdog started (Lock file: $FILE, Implementation dir: $IMPL_DIR, Check interval: ${INT}s, Stale threshold: ${STALE}s)" "$LOG"
+log_message "INFO" "Watchdog started with multi-agent support (Default lock file: $FILE, Implementation dir: $IMPL_DIR, Check interval: ${INT}s, Stale threshold: ${STALE}s)" "$LOG"
 
 # Trap SIGINT and SIGTERM to exit gracefully
 trap 'log_message "INFO" "Watchdog stopping" "$LOG"; exit 0' SIGINT SIGTERM
@@ -207,70 +282,22 @@ check_implementation_integrity
 
 # Main watchdog loop
 while true; do
+  # Check default lock file if it exists
   if [ -f "$FILE" ]; then
-    # Check if file exists but can't be read (permission issue)
-    if [ ! -r "$FILE" ]; then
-      log_message "ERROR" "Cannot read $FILE - permission denied" "$LOG"
-      sleep $INT
-      continue
+    check_lock_file "$FILE"
+  fi
+  
+  # Check all agent-specific lock files using pattern .agent-lock-*
+  for agent_lock in .agent-lock-*; do
+    # Make sure the file exists (not just a pattern with no matches)
+    if [ -f "$agent_lock" ]; then
+      check_lock_file "$agent_lock"
     fi
-    
-    # Get modification time
-    LM=$(get_file_mtime "$FILE")
-    
-    # If we couldn't get the modification time, log and continue
-    if [ -z "$LM" ]; then
-      log_message "ERROR" "Could not determine last modification time of $FILE" "$LOG"
-      sleep $INT
-      continue
-    fi
-    
-    now=$(date +%s)
-    age=$((now-LM))
-    
-    # If the lock file is getting old but not yet stale, log a warning
-    if [ "$age" -gt "$((STALE / 2))" ] && [ "$age" -lt "$STALE" ]; then
-      log_message "WARN" "Lock file $FILE is getting old (${age}s)" "$LOG"
-    fi
-    
-    # If the lock file is stale, back it up and remove it
-    if [ "$age" -gt "$STALE" ]; then
-      ts=$(date -u +%Y%m%d%H%M%S)
-      
-      # Try to parse the lock file to get agent info
-      if [ -r "$FILE" ]; then
-        AGENT_INFO=$(grep -o '"agent": *"[^"]*"' "$FILE" 2>/dev/null | cut -d'"' -f4)
-        if [ -n "$AGENT_INFO" ]; then
-          BACKUP_SUFFIX="${ts}.${AGENT_INFO}.stale"
-        else
-          BACKUP_SUFFIX="${ts}.stale"
-        fi
-      else
-        BACKUP_SUFFIX="${ts}.stale"
-      fi
-      
-      # Create the backup file name
-      BACKUP_FILE="$DIR/$FILE.$BACKUP_SUFFIX"
-      
-      # Backup the stale lock
-      if cp "$FILE" "$BACKUP_FILE" 2>/dev/null; then
-        log_message "ALERT" "Stale heartbeat detected (${age}s > ${STALE}s), backed up to $BACKUP_FILE" "$LOG"
-        
-        # Try to remove the lock file, but don't fail if we can't
-        if rm "$FILE" 2>/dev/null; then
-          log_message "INFO" "Removed stale lock file $FILE" "$LOG"
-        else
-          log_message "ERROR" "Failed to remove stale lock file $FILE" "$LOG"
-        fi
-      else
-        log_message "ERROR" "Failed to backup stale lock file to $BACKUP_FILE" "$LOG"
-      fi
-    fi
-  else
-    # Every 10 checks, look for stale backups to see if they need attention
-    if [ "$((SECONDS % (INT * 10)))" -lt "$INT" ]; then
-      check_recovery
-    fi
+  done
+  
+  # Every 10 checks, look for stale backups to see if they need attention
+  if [ "$((SECONDS % (INT * 10)))" -lt "$INT" ]; then
+    check_recovery
   fi
   
   # Check implementation integrity periodically

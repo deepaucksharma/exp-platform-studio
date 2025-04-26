@@ -32,3 +32,11 @@ dist/
 build/
 coverage/
 .cache/
+
+# Allow sub-folders inside generated_implementation/ to have their own package management
+# But ignore their build artifacts and dependencies
+generated_implementation/**/node_modules/
+generated_implementation/**/venv/
+generated_implementation/**/target/
+generated_implementation/**/bin/
+generated_implementation/**/pkg/

@@ -94,6 +94,36 @@ DEFAULT_BRANCH=$(node -e "try { const utils = require('./scripts/config-utils');
 TEMP_BRANCH="rollback-$ID"
 git checkout -b $TEMP_BRANCH
 
+# Check for a --no-push flag
+NO_PUSH=false
+for arg in "$@"; do
+  if [ "$arg" = "--no-push" ]; then
+    NO_PUSH=true
+    print_status "blue" "Running in no-push mode (will create branch but not push)"
+    break
+  fi
+done
+
+# Check if the temporary branch already exists
+if git show-ref --verify --quiet refs/heads/$TEMP_BRANCH; then
+  # Branch exists, generate a unique name with agent ID if available
+  if [ -f ".agent-lock" ] && [ -r ".agent-lock" ]; then
+    AGENT_INFO=$(grep -o '"agent": *"[^"]*"' ".agent-lock" 2>/dev/null | cut -d'"' -f4)
+    if [ -n "$AGENT_INFO" ]; then
+      TEMP_BRANCH="rollback-${AGENT_INFO}-$ID"
+    else
+      TEMP_BRANCH="rollback-alternate-$ID"
+    fi
+  else
+    # If we can't get agent info, use a timestamp to make it unique
+    TEMP_BRANCH="rollback-alternate-$ID"
+  fi
+  
+  print_status "yellow" "Original branch name was taken, using $TEMP_BRANCH instead"
+fi
+
+git checkout -b $TEMP_BRANCH
+
 # Try to revert the commit
 if ! git revert --no-commit "$SHA"; then
   print_status "red" "Failed to revert commit. Checking for conflicts..."
@@ -184,20 +214,34 @@ fi
 # Complete the revert and push
 git commit -m "revert: $REASON (reverts $SHA)"
 
-print_status "yellow" "Pushing changes..."
+print_status "yellow" "Finalizing rollback..."
 
-if git push --force-with-lease origin $TEMP_BRANCH:$DEFAULT_BRANCH; then
-  print_status "green" "Rollback complete: $ID"
+# Handle the push based on the --no-push flag
+if [ "$NO_PUSH" = true ]; then
+  print_status "green" "Rollback prepared in branch $TEMP_BRANCH (no-push mode)"
   
-  # Update status
+  # Update status but mark as prepared rather than completed
   cat > .cache/rollbacks/$ID.json <<EOF
-{"id":"$ID","sha":"$SHA","time":"$(date -u +%Y-%m-%dT%H:%M:%SZ)","reason":"$REASON","status":"completed","tests_passed":$TEST_SUCCESS}
+{"id":"$ID","sha":"$SHA","time":"$(date -u +%Y-%m-%dT%H:%M:%SZ)","reason":"$REASON","status":"prepared","tests_passed":$TEST_SUCCESS,"branch":"$TEMP_BRANCH"}
 EOF
   
-  # Clean up
-  git checkout $DEFAULT_BRANCH
-  git pull origin $DEFAULT_BRANCH
-  git branch -D $TEMP_BRANCH
+  print_status "blue" "To complete the rollback, run: git checkout $DEFAULT_BRANCH && git merge $TEMP_BRANCH && git push"
+  print_status "blue" "Or use GitHub UI to create a PR from branch: $TEMP_BRANCH"
+else
+  print_status "yellow" "Pushing changes..."
+  
+  if git push --force-with-lease origin $TEMP_BRANCH:$DEFAULT_BRANCH; then
+    print_status "green" "Rollback complete: $ID"
+    
+    # Update status
+    cat > .cache/rollbacks/$ID.json <<EOF
+{"id":"$ID","sha":"$SHA","time":"$(date -u +%Y-%m-%dT%H:%M:%SZ)","reason":"$REASON","status":"completed","tests_passed":$TEST_SUCCESS}
+EOF
+    
+    # Clean up
+    git checkout $DEFAULT_BRANCH
+    git pull origin $DEFAULT_BRANCH
+    git branch -D $TEMP_BRANCH
   
   # Update meta layer status
   print_status "blue" "Updating project status..."

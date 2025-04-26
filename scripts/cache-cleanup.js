@@ -5,217 +5,63 @@
  * Manages the .cache directory, removing stale files and ensuring it doesn't grow unbounded
  */
 
-const fs = require('fs');
-const path = require('path');
-const utils = require('./config-utils');
-
-// Default max age for cache files (7 days in seconds)
-const DEFAULT_MAX_AGE = 7 * 24 * 60 * 60; // 7 days
-
-// Get max cache age from config or use default
-const maxCacheAge = (utils.config.recovery && utils.config.recovery.maxCacheAge) || DEFAULT_MAX_AGE;
-
-// Cache directory
-const CACHE_DIR = path.resolve(path.join(__dirname, '..', '.cache'));
-
-/**
- * Clean up stale locks directory
- */
-function cleanupStaleLocks() {
-  const staleLocksDir = utils.getStaleLocksDir();
-  
-  if (!fs.existsSync(staleLocksDir)) {
-    console.log(`Stale locks directory doesn't exist: ${staleLocksDir}`);
-    return;
-  }
-  
-  try {
-    const now = Date.now();
-    const locks = fs.readdirSync(staleLocksDir);
-    let removed = 0;
-    
-    for (const lock of locks) {
-      const lockPath = path.join(staleLocksDir, lock);
-      const stats = fs.statSync(lockPath);
-      
-      // Check if file is older than max age
-      const ageInSeconds = (now - stats.mtimeMs) / 1000;
-      
-      if (ageInSeconds > maxCacheAge) {
-        fs.unlinkSync(lockPath);
-        removed++;
-      }
-    }
-    
-    console.log(`Cleaned up ${removed} stale lock files older than ${maxCacheAge} seconds`);
-  } catch (err) {
-    console.error(`Error cleaning up stale locks: ${err.message}`);
-  }
-}
-
-/**
- * Clean up diff logs
- */
-function cleanupDiffLogs() {
-  const diffLogsDir = path.join(CACHE_DIR, 'diff-logs');
-  
-  if (!fs.existsSync(diffLogsDir)) {
-    console.log(`Diff logs directory doesn't exist: ${diffLogsDir}`);
-    return;
-  }
-  
-  try {
-    const now = Date.now();
-    const logs = fs.readdirSync(diffLogsDir);
-    let removed = 0;
-    
-    for (const log of logs) {
-      const logPath = path.join(diffLogsDir, log);
-      const stats = fs.statSync(logPath);
-      
-      // Check if file is older than max age
-      const ageInSeconds = (now - stats.mtimeMs) / 1000;
-      
-      if (ageInSeconds > maxCacheAge) {
-        fs.unlinkSync(logPath);
-        removed++;
-      }
-    }
-    
-    console.log(`Cleaned up ${removed} diff log files older than ${maxCacheAge} seconds`);
-  } catch (err) {
-    console.error(`Error cleaning up diff logs: ${err.message}`);
-  }
-}
-
-/**
- * Clean up any temp files
- */
-function cleanupTempFiles() {
-  const tempDir = path.join(CACHE_DIR, 'temp');
-  
-  if (!fs.existsSync(tempDir)) {
-    return;
-  }
-  
-  try {
-    const now = Date.now();
-    const tempFiles = fs.readdirSync(tempDir);
-    let removed = 0;
-    
-    for (const file of tempFiles) {
-      const filePath = path.join(tempDir, file);
-      const stats = fs.statSync(filePath);
-      
-      // Check if file is older than 1 day
-      const ageInSeconds = (now - stats.mtimeMs) / 1000;
-      
-      if (ageInSeconds > 24 * 60 * 60) { // 1 day
-        fs.unlinkSync(filePath);
-        removed++;
-      }
-    }
-    
-    console.log(`Cleaned up ${removed} temporary files older than 1 day`);
-  } catch (err) {
-    console.error(`Error cleaning up temp files: ${err.message}`);
-  }
-}
-
-/**
- * Ensure cache directory exists
- */
-function ensureCacheDir() {
-  if (!fs.existsSync(CACHE_DIR)) {
-    fs.mkdirSync(CACHE_DIR, { recursive: true });
-    console.log(`Created cache directory: ${CACHE_DIR}`);
-  }
-  
-  // Ensure stale locks directory exists
-  const staleLocksDir = utils.getStaleLocksDir();
-  if (!fs.existsSync(staleLocksDir)) {
-    fs.mkdirSync(staleLocksDir, { recursive: true });
-    console.log(`Created stale locks directory: ${staleLocksDir}`);
-  }
-  
-  // Ensure diff logs directory exists
-  const diffLogsDir = path.join(CACHE_DIR, 'diff-logs');
-  if (!fs.existsSync(diffLogsDir)) {
-    fs.mkdirSync(diffLogsDir, { recursive: true });
-    console.log(`Created diff logs directory: ${diffLogsDir}`);
-  }
-  
-  // Ensure temp directory exists
-  const tempDir = path.join(CACHE_DIR, 'temp');
-  if (!fs.existsSync(tempDir)) {
-    fs.mkdirSync(tempDir, { recursive: true });
-    console.log(`Created temp directory: ${tempDir}`);
-  }
-}
-
-/**
- * Check total cache size
- */
-function checkCacheSize() {
-  if (!fs.existsSync(CACHE_DIR)) {
-    return 0;
-  }
-  
-  let totalSize = 0;
-  
-  function getDirectorySize(dirPath) {
-    let size = 0;
-    const files = fs.readdirSync(dirPath);
-    
-    for (const file of files) {
-      const filePath = path.join(dirPath, file);
-      const stats = fs.statSync(filePath);
-      
-      if (stats.isDirectory()) {
-        size += getDirectorySize(filePath);
-      } else {
-        size += stats.size;
-      }
-    }
-    
-    return size;
-  }
-  
-  try {
-    totalSize = getDirectorySize(CACHE_DIR);
-    const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(2);
-    console.log(`Total cache size: ${totalSizeMB} MB`);
-  } catch (err) {
-    console.error(`Error checking cache size: ${err.message}`);
-  }
-  
-  return totalSize;
-}
+const utils = require('../utils');
+const logger = utils.logger.createScopedLogger('CacheCleanup');
 
 /**
  * Main function
  */
 function main() {
-  console.log('DStudio Cache Cleanup');
-  console.log('====================');
+  logger.info('DStudio Cache Cleanup');
+  logger.info('====================');
+  
+  // Get command line arguments
+  const args = process.argv.slice(2);
+  const forceMode = args.includes('--force');
+  const cleanAll = args.includes('--all');
+  
+  logger.info(`Mode: ${forceMode ? 'Force cleanup' : 'Standard cleanup'}${cleanAll ? ', cleaning all artifacts' : ''}`);
   
   // Ensure cache directories exist
-  ensureCacheDir();
+  utils.cache.ensureCacheDir();
+  utils.cache.ensureCacheDir('stale-locks');
+  utils.cache.ensureCacheDir('diff-logs');
+  utils.cache.ensureCacheDir('temp');
   
   // Clean up stale lock files
-  cleanupStaleLocks();
+  const lockFilesRemoved = utils.cache.cleanupStaleCache('stale-locks');
+  logger.info(`Cleaned up ${lockFilesRemoved} stale lock files`);
   
   // Clean up diff logs
-  cleanupDiffLogs();
+  const diffLogsRemoved = utils.cache.cleanupStaleCache('diff-logs');
+  logger.info(`Cleaned up ${diffLogsRemoved} diff log files`);
   
-  // Clean up temp files
-  cleanupTempFiles();
+  // Clean up temp files (with shorter max age)
+  const tempFilesRemoved = utils.cache.cleanupStaleCache('temp', 24 * 60 * 60); // 1 day
+  logger.info(`Cleaned up ${tempFilesRemoved} temporary files older than 1 day`);
+  
+  // Clean up build artifacts
+  const artifactResult = utils.cache.cleanupBuildArtifacts();
+  if (artifactResult.success) {
+    logger.info(`Cleaned up ${artifactResult.totalRemoved} build artifact directories (${utils.cache.formatCacheSize(artifactResult.totalSize)} total)`);
+    
+    if (artifactResult.errors) {
+      artifactResult.errors.forEach(error => logger.warn(error));
+    }
+  } else if (artifactResult.error) {
+    logger.warn(`Build artifact cleanup issue: ${artifactResult.error}`);
+  }
   
   // Check cache size
-  const cacheSize = checkCacheSize();
+  const cacheSize = utils.cache.getCacheSize();
+  logger.info(`Total cache size: ${utils.cache.formatCacheSize(cacheSize)}`);
   
-  console.log('\nCache cleanup complete!');
+  logger.info('\nCache cleanup complete!');
 }
 
-// Run the main function
-main();
+// Run the main function with error handling
+try {
+  main();
+} catch (err) {
+  utils.error.createErrorHandler('cache-cleanup')(err);
+}

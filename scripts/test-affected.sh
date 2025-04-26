@@ -168,8 +168,26 @@ if [ "$ALL" = true ]; then
   exit $?
 fi
 
-# Get affected files relative to implementation directory
+# Get affected files relative to implementation directory 
+# Improved to handle nested service directories by preserving path structure after the implementation dir
 FILES=$(git -C .. diff --name-only --diff-filter=ACMRTUXB "$SINCE"..HEAD | grep "^$IMPL_DIR/" | sed "s|^$IMPL_DIR/||")
+
+# Detect if we're in a service subdirectory
+CURRENT_DIR=$(pwd)
+RELATIVE_TO_IMPL=${CURRENT_DIR#*/$IMPL_DIR/}
+
+# If we're in a service subdirectory (not the implementation root)
+if [ "$RELATIVE_TO_IMPL" != "$CURRENT_DIR" ] && [ -n "$RELATIVE_TO_IMPL" ]; then
+  SERVICE_NAME=$(echo "$RELATIVE_TO_IMPL" | cut -d'/' -f1)
+  
+  # Filter files to only those in this service
+  if [ -n "$SERVICE_NAME" ]; then
+    print_status "blue" "Running in service: $SERVICE_NAME"
+    FILES=$(echo "$FILES" | grep "^$SERVICE_NAME/")
+    # Strip service name prefix to get path relative to current directory
+    FILES=$(echo "$FILES" | sed "s|^$SERVICE_NAME/||")
+  fi
+fi
 
 if [ -z "$FILES" ]; then
   print_status "green" "No implementation files changed"

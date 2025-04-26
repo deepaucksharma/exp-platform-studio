@@ -17,6 +17,8 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: 'package-lock.json'
       - name: Install dependencies
         run: npm ci
       - name: Check Meta/Implementation separation
@@ -36,12 +38,18 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: 'package-lock.json'
       - name: Install dependencies
         run: npm ci
       - name: Run cache cleanup
         run: |
           node scripts/cache-cleanup.js
           echo "Cache cleanup completed"
+      - name: Merge agent status files
+        run: |
+          npm run merge:status
+          echo "Agent status files merged"
           
   detect-language:
     runs-on: ubuntu-latest
