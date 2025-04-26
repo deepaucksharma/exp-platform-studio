@@ -1,0 +1,7 @@
+{
+  "agent": "Claude",
+  "sessionId": "bootstrap-session-001",
+  "timestamp": "2025-04-26T12:00:00Z",
+  "status": "active",
+  "currentTask": "bootstrap"
+}

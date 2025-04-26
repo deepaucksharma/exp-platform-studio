@@ -1,0 +1,29 @@
+{
+  "version": "1.1",
+  "projectName": "DStudio",
+  "workspace": {
+    "rootDir": "./",
+    "implementationDir": "./generated_implementation",
+    "projectTypePatterns": {
+      "js": ["generated_implementation/package.json"],
+      "go": ["generated_implementation/go.mod"],
+      "python": ["generated_implementation/requirements.txt", "generated_implementation/pyproject.toml"],
+      "rust": ["generated_implementation/Cargo.toml"],
+      "java": ["generated_implementation/pom.xml", "generated_implementation/build.gradle"]
+    },
+    "excludeDirs": [".git", "node_modules", ".cache", "dist", "build"]
+  },
+  "development": {
+    "codingStandardsProtocol": "docs/protocol/claude-protocol.md",
+    "defaultBranch": "main",
+    "testing": {
+      "coverageThresholdPercent": 90,
+      "runAffectedTestsOnly": true
+    }
+  },
+  "recovery": {
+    "heartbeatFile": ".agent-lock",
+    "heartbeatIntervalSeconds": 30,
+    "heartbeatStaleSeconds": 300
+  }
+}

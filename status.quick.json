@@ -1,0 +1,46 @@
+{
+  "version": "1.2",
+  "generated": "2025-04-26T14:18:36.255Z",
+  "project": {
+    "statusFile": "project-status.md",
+    "statusLastUpdated": "2025-04-26T14:17:54.823Z",
+    "statusChecksum": "f39d80edcc1252349adcc63f5fd0e235949bae790d219710beaf9be396be627e",
+    "metricsFile": "docs/metrics.md",
+    "metricsChecksum": "d1b307efd45713b0b3b802ffc8f62e9fff50d52b6372761a87cbf5756919a146",
+    "specFile": "e393c6a2e3277f5a414c89a920244f85332eb01514cceaa6bbe89d6920234b5a"
+  },
+  "implementation": {
+    "directory": "generated_implementation",
+    "exists": true,
+    "fileCount": 1,
+    "requirements": 10
+  },
+  "agentState": {
+    "next_task": null,
+    "last_completed_task": null,
+    "pending_tasks_count": 5,
+    "blockers": [
+      "None"
+    ],
+    "blockers_count": 1
+  },
+  "health": {
+    "ci_system": "github-actions",
+    "requirements_total": 27,
+    "requirements_completed": 0,
+    "requirements_progress_percent": 0,
+    "total_files": 1,
+    "total_lines_of_code": null,
+    "recent_issues_critical": 0,
+    "recent_issues_error": 0,
+    "recent_issues_warning": 0
+  },
+  "latest_metrics": {},
+  "environment": {
+    "hostname": "DESKTOP-DT6CF2J",
+    "platform": "win32",
+    "arch": "x64",
+    "node_version": "v22.11.0"
+  },
+  "parseError": null
+}
